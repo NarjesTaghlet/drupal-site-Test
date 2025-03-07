@@ -1,0 +1,117 @@
+name: Deploy Drupal Site
+
+on:
+  workflow_dispatch: # Manuel pour tester
+    inputs:
+      username:
+        description: 'Username for the Drupal site (e.g., test)'
+        required: true
+        default: 'test'
+
+env:
+  RESOURCE_GROUP: 'drupal-rg-user1-5ad1bbb1'
+  STORAGE_ACCOUNT: 'mystor${{ github.event.inputs.username }}2025'
+  CONTAINER_NAME: '${{ github.event.inputs.username }}-drupal'
+  DB_SERVER: 'drupal-db-user1-5ad1bbb1'
+  DB_NAME: 'drupal_${{ github.event.inputs.username }}'
+  DB_USER: 'drupaluser_user1'
+  DB_PASSWORD: 'xr4u8WSiq3B!TQOL'
+  DB_HOST: 'drupal-db-user1-5ad1bbb1.mysql.database.azure.com'
+  LOCATION: 'centralus'
+  ACR_NAME: 'drupalacrnarjes'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Login à Azure
+      - name: Login to Azure
+        run: |
+          az login --use-device-code
+          az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+
+
+      # Créer Resource Group
+      - name: Create Resource Group
+        run: |
+          az group create --name $RESOURCE_GROUP --location $LOCATION || echo "Resource group already exists."
+
+      # Créer Storage Account
+      - name: Create Storage Account
+        run: |
+          az storage account create --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP --location $LOCATION --sku Standard_LRS
+          until az storage account show --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP --query 'provisioningState' -o tsv | grep -q "Succeeded"; do
+            echo "Waiting for storage account $STORAGE_ACCOUNT to be fully provisioned..."
+            sleep 10
+          done
+          STORAGE_KEY=$(az storage account keys list --resource-group $RESOURCE_GROUP --account-name $STORAGE_ACCOUNT --query '[0].value' -o tsv)
+          echo "STORAGE_KEY=$STORAGE_KEY" >> $GITHUB_ENV
+
+      # Créer File Shares
+      - name: Create File Shares
+        run: |
+          for attempt in {1..5}; do
+            az storage share create --name "drupal-files-${{ github.event.inputs.username }}" --account-name $STORAGE_ACCOUNT --account-key $STORAGE_KEY --output none
+            az storage share create --name "drupal-config-${{ github.event.inputs.username }}" --account-name $STORAGE_ACCOUNT --account-key $STORAGE_KEY --output none
+            if az storage share list --account-name $STORAGE_ACCOUNT --account-key $STORAGE_KEY --query "[?name=='drupal-files-${{ github.event.inputs.username }}' || name=='drupal-config-${{ github.event.inputs.username }}'] | length(@)" -o tsv | grep -q "2"; then
+              echo "File shares created successfully!"
+              break
+            fi
+            echo "Attempt $attempt failed, retrying in 10 seconds..."
+            sleep 10
+          done
+          if [ $attempt -eq 5 ]; then
+            echo "Error: Failed to create file shares after 5 attempts"
+            exit 1
+          fi
+
+      # Créer Database
+      - name: Create Database
+        run: |
+          az mysql flexible-server db create \
+            --resource-group $RESOURCE_GROUP \
+            --server-name $DB_SERVER \
+            --database-name $DB_NAME || echo "Database $DB_NAME may already exist."
+
+      # Déployer ACI
+      - name: Deploy ACI
+        run: |
+          az container create \
+            --resource-group $RESOURCE_GROUP \
+            --name $CONTAINER_NAME \
+            --image $ACR_NAME.azurecr.io/drupal-app:latest \
+            --registry-login-server $ACR_NAME.azurecr.io \
+            --registry-username $(az acr credential show --name $ACR_NAME --query username -o tsv) \
+            --registry-password $(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv) \
+            --os-type Linux \
+            --cpu 1 \
+            --memory 1.5 \
+            --ports 80 \
+            --dns-name-label $CONTAINER_NAME \
+            --location $LOCATION \
+            --environment-variables \
+              DRUPAL_DB_NAME=$DB_NAME \
+              DRUPAL_DB_USER=$DB_USER \
+              DRUPAL_DB_PASSWORD=$DB_PASSWORD \
+              DRUPAL_DB_HOST=$DB_HOST \
+              DRUPAL_DB_PORT=3306 \
+            --azure-file-volume-share-name "drupal-files-${{ github.event.inputs.username }}" \
+            --azure-file-volume-account-name $STORAGE_ACCOUNT \
+            --azure-file-volume-account-key $STORAGE_KEY \
+            --azure-file-volume-mount-path /var/www/html/web/sites/default/files \
+            --azure-file-volume-share-name "drupal-config-${{ github.event.inputs.username }}" \
+            --azure-file-volume-account-name $STORAGE_ACCOUNT \
+            --azure-file-volume-account-key $STORAGE_KEY \
+            --azure-file-volume-mount-path /var/www/html/config
+
+      # Vérifier Logs
+      - name: Check ACI Logs
+        run: |
+          sleep 60 # Attendre que l'ACI démarre
+          az container logs --resource-group $RESOURCE_GROUP --name $CONTAINER_NAME
+
+      # Afficher URL
+      - name: Output URL
+        run: |
+          echo "Site deployed! URL: http://$CONTAINER_NAME.$LOCATION.azurecontainer.io"
+          echo "Admin login (after install): http://$CONTAINER_NAME.$LOCATION.azurecontainer.io/user/login (admin/admin)"
