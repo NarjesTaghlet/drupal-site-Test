@@ -1,13 +1,11 @@
 name: Deploy Drupal Site
-
 on:
-  workflow_dispatch: # Manuel pour tester
+  workflow_dispatch:
     inputs:
       username:
         description: 'Username for the Drupal site (e.g., test)'
         required: true
         default: 'test'
-
 env:
   RESOURCE_GROUP: 'drupal-rg-user1-5ad1bbb1'
   STORAGE_ACCOUNT: 'mystor${{ github.event.inputs.username }}2025'
@@ -19,24 +17,19 @@ env:
   DB_HOST: 'drupal-db-user1-5ad1bbb1.mysql.database.azure.com'
   LOCATION: 'centralus'
   ACR_NAME: 'drupalacrnarjes'
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # Login à Azure
+      - name: Checkout code
+        uses: actions/checkout@v3
       - name: Login to Azure
         run: |
           az login --use-device-code
           az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-
-
-      # Créer Resource Group
       - name: Create Resource Group
         run: |
           az group create --name $RESOURCE_GROUP --location $LOCATION || echo "Resource group already exists."
-
-      # Créer Storage Account
       - name: Create Storage Account
         run: |
           az storage account create --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP --location $LOCATION --sku Standard_LRS
@@ -46,8 +39,6 @@ jobs:
           done
           STORAGE_KEY=$(az storage account keys list --resource-group $RESOURCE_GROUP --account-name $STORAGE_ACCOUNT --query '[0].value' -o tsv)
           echo "STORAGE_KEY=$STORAGE_KEY" >> $GITHUB_ENV
-
-      # Créer File Shares
       - name: Create File Shares
         run: |
           for attempt in {1..5}; do
@@ -64,32 +55,74 @@ jobs:
             echo "Error: Failed to create file shares after 5 attempts"
             exit 1
           fi
-
-      # Créer Database
       - name: Create Database
         run: |
           az mysql flexible-server db create \
             --resource-group $RESOURCE_GROUP \
             --server-name $DB_SERVER \
             --database-name $DB_NAME || echo "Database $DB_NAME may already exist."
-
-    
       - name: Deploy ACI
         run: |
           az container create \
             --resource-group $RESOURCE_GROUP \
-            --file ./aci-config.yml \
             --registry-login-server $ACR_NAME.azurecr.io \
             --registry-username $(az acr credential show --name $ACR_NAME --query username -o tsv) \
-            --registry-password $(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)      
-
-      # Vérifier Logs
+            --registry-password $(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv) \
+            --yaml |
+              apiVersion: '2021-10-01'
+              location: centralus
+              name: ${{ github.event.inputs.username }}-drupal
+              properties:
+                containers:
+                - name: drupal
+                  properties:
+                    image: drupalacrnarjes.azurecr.io/drupal-app:latest
+                    ports:
+                    - port: 80
+                      protocol: TCP
+                    environmentVariables:
+                    - name: DRUPAL_DB_NAME
+                      value: drupal_${{ github.event.inputs.username }}
+                    - name: DRUPAL_DB_USER
+                      value: $DB_USER
+                    - name: DRUPAL_DB_PASSWORD
+                      value: $DB_PASSWORD
+                    - name: DRUPAL_DB_HOST
+                      value: $DB_HOST
+                    - name: DRUPAL_DB_PORT
+                      value: '3306'
+                    resources:
+                      requests:
+                        cpu: 1.0
+                        memoryInGB: 1.5
+                    volumeMounts:
+                    - name: config-volume
+                      mountPath: /var/www/html/config
+                    - name: files-volume
+                      mountPath: /var/www/html/web/sites/default/files
+                volumes:
+                - name: config-volume
+                  azureFile:
+                    shareName: drupal-config-${{ github.event.inputs.username }}
+                    storageAccountName: mystor${{ github.event.inputs.username }}2025
+                    storageAccountKey: $STORAGE_KEY
+                - name: files-volume
+                  azureFile:
+                    shareName: drupal-files-${{ github.event.inputs.username }}
+                    storageAccountName: mystor${{ github.event.inputs.username }}2025
+                    storageAccountKey: $STORAGE_KEY
+                ipAddress:
+                  type: Public
+                  ports:
+                  - protocol: TCP
+                    port: 80
+                  dnsNameLabel: ${{ github.event.inputs.username }}-drupal
+                restartPolicy: OnFailure
+              type: Microsoft.ContainerInstance/containerGroups
       - name: Check ACI Logs
         run: |
           sleep 60 # Attendre que l'ACI démarre
           az container logs --resource-group $RESOURCE_GROUP --name $CONTAINER_NAME
-
-      # Afficher URL
       - name: Output URL
         run: |
           echo "Site deployed! URL: http://$CONTAINER_NAME.$LOCATION.azurecontainer.io"
