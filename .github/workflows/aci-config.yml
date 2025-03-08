@@ -1,0 +1,50 @@
+apiVersion: '2021-10-01'
+location: centralus
+name: ${{ github.event.inputs.username }}-drupal
+properties:
+  containers:
+  - name: drupal
+    properties:
+      image: drupalacrnarjes.azurecr.io/drupal-app:latest
+      ports:
+      - port: 80
+        protocol: TCP
+      environmentVariables:
+      - name: DRUPAL_DB_NAME
+        value: drupal_${{ github.event.inputs.username }}
+      - name: DRUPAL_DB_USER
+        value: $DRUPAL_DB_USER
+      - name: DRUPAL_DB_PASSWORD
+        value: $DRUPAL_DB_PASSWORD
+      - name: DRUPAL_DB_HOST
+        value: $DRUPAL_DB_HOST
+      - name: DRUPAL_DB_PORT
+        value: '3306'
+      resources:
+        requests:
+          cpu: 1.0
+          memoryInGB: 1.5
+      volumeMounts:
+      - name: config-volume
+        mountPath: /var/www/html/config
+      - name: files-volume
+        mountPath: /var/www/html/web/sites/default/files
+  volumes:
+  - name: config-volume
+    azureFile:
+      shareName: drupal-config-${{ github.event.inputs.username }}
+      storageAccountName: mystorjess2025
+      storageAccountKey: $STORAGE_ACCOUNT_KEY
+  - name: files-volume
+    azureFile:
+      shareName: drupal-files-${{ github.event.inputs.username }}
+      storageAccountName: mystorjess2025
+      storageAccountKey: $STORAGE_ACCOUNT_KEY
+  ipAddress:
+    type: Public
+    ports:
+    - protocol: TCP
+      port: 80
+    dnsNameLabel: ${{ github.event.inputs.username }}-drupal
+  restartPolicy: OnFailure
+type: Microsoft.ContainerInstance/containerGroups
