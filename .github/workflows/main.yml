@@ -79,11 +79,11 @@ jobs:
           cat <<EOF > aci-config.yml
           apiVersion: '2021-10-01'
           location: $LOCATION
-          name: $CONTAINER_NAME
+          name: $ACR_NAME
           properties:
             osType: Linux
             containers:
-            - name: drupal
+            - name: $CONTAINER_NAME
               properties:
                 image: $ACR_NAME.azurecr.io/drupal-app:latest
                 ports:
