@@ -135,10 +135,11 @@ jobs:
           # Déployer avec le fichier généré
           az container create \
             --resource-group "$RESOURCE_GROUP" \
-            --file aci-config.yml \
+            
             --registry-login-server "$ACR_NAME.azurecr.io" \
             --registry-username "$(az acr credential show --name $ACR_NAME --query username -o tsv)" \
-            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)"
+            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)" \
+            --file aci-config.yml 
       - name: Check ACI Logs
         run: |
           sleep 60 # Attendre que l'ACI démarre
