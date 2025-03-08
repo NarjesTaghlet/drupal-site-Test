@@ -69,6 +69,7 @@ jobs:
           location: $LOCATION
           name: $CONTAINER_NAME
           properties:
+            osType: Linux
             containers:
             - name: drupal
               properties:
