@@ -13,11 +13,11 @@ properties:
       - name: DRUPAL_DB_NAME
         value: drupal_${{ github.event.inputs.username }}
       - name: DRUPAL_DB_USER
-        value: ${{ secrets.DB_USER }}
+        value: $DRUPAL_DB_USER
       - name: DRUPAL_DB_PASSWORD
-        value: ${{ secrets.DB_PASSWORD }}
+        value: $DRUPAL_DB_PASSWORD
       - name: DRUPAL_DB_HOST
-        value: ${{ secrets.DB_HOST }}
+        value: $DRUPAL_DB_HOST
       - name: DRUPAL_DB_PORT
         value: '3306'
       resources:
@@ -34,12 +34,12 @@ properties:
     azureFile:
       shareName: drupal-config-${{ github.event.inputs.username }}
       storageAccountName: mystorjess2025
-      storageAccountKey: ${{ secrets.STORAGE_ACCOUNT_KEY }}
+      storageAccountKey: $STORAGE_ACCOUNT_KEY
   - name: files-volume
     azureFile:
       shareName: drupal-files-${{ github.event.inputs.username }}
       storageAccountName: mystorjess2025
-      storageAccountKey: ${{ secrets.STORAGE_ACCOUNT_KEY }}
+      storageAccountKey: $STORAGE_ACCOUNT_KEY
   ipAddress:
     type: Public
     ports:
