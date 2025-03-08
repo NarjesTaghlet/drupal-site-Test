@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       username:
-        description: 'Username for the Drupal site (e.g., test)'
+        description: 'Username for the Drupal site (e.g., jess)'
         required: true
-        default: 'test'
+        default: 'jess'
 env:
   RESOURCE_GROUP: 'drupal-rg-user1-5ad1bbb1'
   STORAGE_ACCOUNT: 'mystor${{ github.event.inputs.username }}2025'
@@ -27,6 +27,10 @@ jobs:
         run: |
           az login --use-device-code
           az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+      - name: Debug Environment Variables
+        run: |
+          echo "CONTAINER_NAME: $CONTAINER_NAME"
+          echo "ACR_NAME: $ACR_NAME"
       - name: Create Resource Group
         run: |
           az group create --name $RESOURCE_GROUP --location $LOCATION || echo "Resource group already exists."
@@ -75,15 +79,14 @@ jobs:
           docker login $ACR_NAME.azurecr.io --username "$ACR_USERNAME" --password "$ACR_PASSWORD" || echo "ACR login failed"
       - name: Deploy ACI
         run: |
-          # Générer le fichier YAML temporairement
           cat <<EOF > aci-config.yml
           apiVersion: '2021-10-01'
           location: $LOCATION
-          name: $ACR_NAME
+          name: $CONTAINER_NAME
           properties:
             osType: Linux
             containers:
-            - name: $CONTAINER_NAME
+            - name: drupal
               properties:
                 image: $ACR_NAME.azurecr.io/drupal-app:latest
                 ports:
@@ -102,13 +105,17 @@ jobs:
                   value: '3306'
                 resources:
                   requests:
-                    cpu: 2.0
-                    memoryInGB: 4.0
+                    cpu: 1.0
+                    memoryInGB: 1.5
                 volumeMounts:
                 - name: config-volume
                   mountPath: /var/www/html/config
                 - name: files-volume
                   mountPath: /var/www/html/web/sites/default/files
+            imageRegistryCredentials:
+            - server: $ACR_NAME.azurecr.io
+              username: $ACR_USERNAME
+              password: $ACR_PASSWORD
             volumes:
             - name: config-volume
               azureFile:
@@ -129,20 +136,14 @@ jobs:
             restartPolicy: OnFailure
           type: Microsoft.ContainerInstance/containerGroups
           EOF
-          # Afficher le YAML pour vérification
           echo "Generated aci-config.yml:"
           cat aci-config.yml
-          # Déployer avec le fichier généré
           az container create \
             --resource-group "$RESOURCE_GROUP" \
-            
-            --registry-login-server "$ACR_NAME.azurecr.io" \
-            --registry-username "$(az acr credential show --name $ACR_NAME --query username -o tsv)" \
-            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)" \
-            --file aci-config.yml 
+            --file aci-config.yml
       - name: Check ACI Logs
         run: |
-          sleep 60 # Attendre que l'ACI démarre
+          sleep 60
           az container logs --resource-group $RESOURCE_GROUP --name $CONTAINER_NAME
       - name: Output URL
         run: |
