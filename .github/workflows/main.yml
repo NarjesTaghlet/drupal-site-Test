@@ -61,6 +61,18 @@ jobs:
             --resource-group $RESOURCE_GROUP \
             --server-name $DB_SERVER \
             --database-name $DB_NAME || echo "Database $DB_NAME may already exist."
+      - name: Debug ACR Credentials and Image
+        run: |
+          ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)
+          echo "ACR Username: $ACR_USERNAME"
+          echo "ACR Password: $ACR_PASSWORD"
+          echo "Listing repositories in $ACR_NAME:"
+          az acr repository list --name $ACR_NAME --output table
+          echo "Listing tags for drupal-app:"
+          az acr repository show-tags --name $ACR_NAME --repository drupal-app --output table || echo "No tags found for drupal-app"
+          echo "Testing ACR login:"
+          docker login $ACR_NAME.azurecr.io --username "$ACR_USERNAME" --password "$ACR_PASSWORD" || echo "ACR login failed"
       - name: Deploy ACI
         run: |
           # Générer le fichier YAML temporairement
@@ -117,15 +129,16 @@ jobs:
             restartPolicy: OnFailure
           type: Microsoft.ContainerInstance/containerGroups
           EOF
+          # Afficher le YAML pour vérification
+          echo "Generated aci-config.yml:"
+          cat aci-config.yml
           # Déployer avec le fichier généré
           az container create \
             --resource-group "$RESOURCE_GROUP" \
             --file aci-config.yml \
             --registry-login-server "$ACR_NAME.azurecr.io" \
             --registry-username "$(az acr credential show --name $ACR_NAME --query username -o tsv)" \
-            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)" \
-            --os-type Linux 
-            
+            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)"
       - name: Check ACI Logs
         run: |
           sleep 60 # Attendre que l'ACI démarre
