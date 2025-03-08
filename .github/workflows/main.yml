@@ -73,36 +73,15 @@ jobs:
             --server-name $DB_SERVER \
             --database-name $DB_NAME || echo "Database $DB_NAME may already exist."
 
-      # Déployer ACI
+    
       - name: Deploy ACI
         run: |
           az container create \
             --resource-group $RESOURCE_GROUP \
-            --name $CONTAINER_NAME \
-            --image $ACR_NAME.azurecr.io/drupal-app:latest \
+            --file aci-config.yml \
             --registry-login-server $ACR_NAME.azurecr.io \
             --registry-username $(az acr credential show --name $ACR_NAME --query username -o tsv) \
-            --registry-password $(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv) \
-            --os-type Linux \
-            --cpu 1 \
-            --memory 1.5 \
-            --ports 80 \
-            --dns-name-label $CONTAINER_NAME \
-            --location $LOCATION \
-            --environment-variables \
-              DRUPAL_DB_NAME=$DB_NAME \
-              DRUPAL_DB_USER=$DB_USER \
-              DRUPAL_DB_PASSWORD=$DB_PASSWORD \
-              DRUPAL_DB_HOST=$DB_HOST \
-              DRUPAL_DB_PORT=3306 \
-            --azure-file-volume-share-name "drupal-files-${{ github.event.inputs.username }}" \
-            --azure-file-volume-account-name $STORAGE_ACCOUNT \
-            --azure-file-volume-account-key $STORAGE_KEY \
-            --azure-file-volume-mount-path /var/www/html/web/sites/default/files \
-            --azure-file-volume-share-name "drupal-config-${{ github.event.inputs.username }}" \
-            --azure-file-volume-account-name $STORAGE_ACCOUNT \
-            --azure-file-volume-account-key $STORAGE_KEY \
-            --azure-file-volume-mount-path /var/www/html/config
+            --registry-password $(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)      
 
       # Vérifier Logs
       - name: Check ACI Logs
