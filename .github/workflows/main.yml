@@ -63,34 +63,66 @@ jobs:
             --database-name $DB_NAME || echo "Database $DB_NAME may already exist."
       - name: Deploy ACI
         run: |
+          # Générer le fichier YAML temporairement
+          cat <<EOF > aci-config.yml
+          apiVersion: '2021-10-01'
+          location: $LOCATION
+          name: $CONTAINER_NAME
+          properties:
+            containers:
+            - name: drupal
+              properties:
+                image: $ACR_NAME.azurecr.io/drupal-app:latest
+                ports:
+                - port: 80
+                  protocol: TCP
+                environmentVariables:
+                - name: DRUPAL_DB_NAME
+                  value: $DB_NAME
+                - name: DRUPAL_DB_USER
+                  value: $DB_USER
+                - name: DRUPAL_DB_PASSWORD
+                  value: $DB_PASSWORD
+                - name: DRUPAL_DB_HOST
+                  value: $DB_HOST
+                - name: DRUPAL_DB_PORT
+                  value: '3306'
+                resources:
+                  requests:
+                    cpu: 1.0
+                    memoryInGB: 1.5
+                volumeMounts:
+                - name: config-volume
+                  mountPath: /var/www/html/config
+                - name: files-volume
+                  mountPath: /var/www/html/web/sites/default/files
+            volumes:
+            - name: config-volume
+              azureFile:
+                shareName: drupal-config-${{ github.event.inputs.username }}
+                storageAccountName: $STORAGE_ACCOUNT
+                storageAccountKey: $STORAGE_KEY
+            - name: files-volume
+              azureFile:
+                shareName: drupal-files-${{ github.event.inputs.username }}
+                storageAccountName: $STORAGE_ACCOUNT
+                storageAccountKey: $STORAGE_KEY
+            ipAddress:
+              type: Public
+              ports:
+              - protocol: TCP
+                port: 80
+              dnsNameLabel: $CONTAINER_NAME
+            restartPolicy: OnFailure
+          type: Microsoft.ContainerInstance/containerGroups
+          EOF
+          # Déployer avec le fichier généré
           az container create \
             --resource-group "$RESOURCE_GROUP" \
-            --name "$CONTAINER_NAME" \
-            --image "$ACR_NAME.azurecr.io/drupal-app:latest" \
+            --file aci-config.yml \
             --registry-login-server "$ACR_NAME.azurecr.io" \
             --registry-username "$(az acr credential show --name $ACR_NAME --query username -o tsv)" \
-            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)" \
-            --os-type Linux \
-            --location "$LOCATION" \
-            --cpu 2 \
-            --memory 4 \
-            --ports 80 \
-            --dns-name-label "$CONTAINER_NAME" \
-            --environment-variables \
-              DRUPAL_DB_NAME="$DB_NAME" \
-              DRUPAL_DB_USER="$DB_USER" \
-              DRUPAL_DB_PASSWORD="$DB_PASSWORD" \
-              DRUPAL_DB_HOST="$DB_HOST" \
-              DRUPAL_DB_PORT=3306 \
-            --azure-file-volume-share-name "drupal-config-${{ github.event.inputs.username }}" \
-            --azure-file-volume-account-name "$STORAGE_ACCOUNT" \
-            --azure-file-volume-account-key "$STORAGE_KEY" \
-            --azure-file-volume-mount-path "/var/www/html/config" \
-            --azure-file-volume-share-name "drupal-files-${{ github.event.inputs.username }}" \
-            --azure-file-volume-account-name "$STORAGE_ACCOUNT" \
-            --azure-file-volume-account-key "$STORAGE_KEY" \
-            --azure-file-volume-mount-path "/var/www/html/web/sites/default/files" \
-            --restart-policy OnFailure
+            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)"
       - name: Check ACI Logs
         run: |
           sleep 60 # Attendre que l'ACI démarre
