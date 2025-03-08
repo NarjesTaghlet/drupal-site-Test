@@ -89,8 +89,8 @@ jobs:
                   value: '3306'
                 resources:
                   requests:
-                    cpu: 1.0
-                    memoryInGB: 1.5
+                    cpu: 2.0
+                    memoryInGB: 4.0
                 volumeMounts:
                 - name: config-volume
                   mountPath: /var/www/html/config
@@ -122,7 +122,9 @@ jobs:
             --file aci-config.yml \
             --registry-login-server "$ACR_NAME.azurecr.io" \
             --registry-username "$(az acr credential show --name $ACR_NAME --query username -o tsv)" \
-            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)"
+            --registry-password "$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)" \
+            --os-type Linux 
+            
       - name: Check ACI Logs
         run: |
           sleep 60 # Attendre que l'ACI démarre
