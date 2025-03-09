@@ -121,14 +121,18 @@ jobs:
               azureFile:
                 shareName: drupal-config-${{ github.event.inputs.username }}
                 storageAccountName: $STORAGE_ACCOUNT
-                storageAccountKey: $STORAGE_KEY
-                mountOptions: "uid=33,gid=33"
+                storageAccountKey: $STORAGE_KEY 
+              mountOptions:
+              - dir_mode=0777
+              - file_mode=0750
             - name: files-volume
               azureFile:
                 shareName: drupal-files-${{ github.event.inputs.username }}
                 storageAccountName: $STORAGE_ACCOUNT
                 storageAccountKey: $STORAGE_KEY
-                mountOptions: "uid=33,gid=33"
+              mountOptions:
+              - dir_mode=0777
+              - file_mode=0750
             ipAddress:
               type: Public
               ports:
