@@ -69,26 +69,24 @@ jobs:
         run: |
           ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username -o tsv)
           ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)
+          echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_ENV
+          echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_ENV
           echo "ACR Username: $ACR_USERNAME"
-          echo "ACR Password: $ACR_PASSWORD"
-          echo "Listing repositories in $ACR_NAME:"
-          az acr repository list --name $ACR_NAME --output table
-          echo "Listing tags for drupal-app:"
-          az acr repository show-tags --name $ACR_NAME --repository drupal-app --output table || echo "No tags found for drupal-app"
+          echo "ACR Password: [hidden]"
           echo "Testing ACR login:"
           docker login $ACR_NAME.azurecr.io --username "$ACR_USERNAME" --password "$ACR_PASSWORD" || echo "ACR login failed"
+
       - name: Deploy ACI
         run: |
-          ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query 'passwords[0].value' -o tsv)
+          echo "Deploying ACI named $CONTAINER_NAME pulling image from ACR $ACR_NAME"
           cat <<EOF > aci-config.yml
           apiVersion: '2021-10-01'
           location: $LOCATION
-          name: $ACR_NAME
+          name: $CONTAINER_NAME
           properties:
             osType: Linux
             containers:
-            - name: $CONTAINER_NAME
+            - name: drupal
               properties:
                 image: $ACR_NAME.azurecr.io/drupal-app:latest
                 ports:
@@ -107,28 +105,30 @@ jobs:
                   value: '3306'
                 resources:
                   requests:
-                    cpu: 1.0
-                    memoryInGB: 1.5
+                    cpu: 2.0
+                    memoryInGB: 4.0
                 volumeMounts:
                 - name: config-volume
                   mountPath: /var/www/html/config
                 - name: files-volume
                   mountPath: /var/www/html/web/sites/default/files
             imageRegistryCredentials:
-            - server: $ACR_NAME.azurecr.io
-              username: $ACR_USERNAME
-              password: $ACR_PASSWORD
+            - server: "$ACR_NAME.azurecr.io"
+              username: "$ACR_USERNAME"
+              password: "$ACR_PASSWORD"
             volumes:
             - name: config-volume
               azureFile:
                 shareName: drupal-config-${{ github.event.inputs.username }}
                 storageAccountName: $STORAGE_ACCOUNT
                 storageAccountKey: $STORAGE_KEY
+                mountOptions: "uid=33,gid=33"
             - name: files-volume
               azureFile:
                 shareName: drupal-files-${{ github.event.inputs.username }}
                 storageAccountName: $STORAGE_ACCOUNT
                 storageAccountKey: $STORAGE_KEY
+                mountOptions: "uid=33,gid=33"
             ipAddress:
               type: Public
               ports:
@@ -140,9 +140,12 @@ jobs:
           EOF
           echo "Generated aci-config.yml:"
           cat aci-config.yml
+          echo "Creating ACI with explicit ACR image pull"
           az container create \
             --resource-group "$RESOURCE_GROUP" \
-            --file aci-config.yml
+            --file aci-config.yml \
+            --name "$CONTAINER_NAME" \
+            --verbose
       - name: Check ACI Logs
         run: |
           sleep 60
