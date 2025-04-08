@@ -9,13 +9,16 @@ on:
         default: 'jess'
 
 env:
-  INSTANCE_NAME: ${{ secrets.INSTANCE_NAME }}
-  DOCKER_IMAGE: jesstg/drupal-custom:latest
-  DB_HOST: ${{ secrets.DB_HOST }}
-  DB_PORT: ${{ secrets.DB_PORT }}
-  DB_NAME: ${{ secrets.DB_NAME }}
-  DB_USER: ${{ secrets.DB_USER }}
-  DB_PASS: ${{ secrets.DB_PASS }}
+  # Hardcode these for testing; replace with real values from your Terraform outputs
+  INSTANCE_NAME: "lightsail_19_test"  # e.g., from lightsail_${var.user_id}_${var.site_name}
+  DOCKER_IMAGE: "jesstg/drupal-custom:latest"
+  DB_HOST: "ls-b8b0bddca9b5f313e52ddba2652e47f2fd54a7d7.c43wcgu6gelw.us-east-1.rds.amazonaws.com"  # Replace with your database endpoint
+  DB_PORT: "3306"  # Default MySQL port, adjust if different
+  DB_NAME: "db-19-test"  # Replace with your master_database_name
+  DB_USER: "user"
+  DB_PASS: "L1T#Am#OZ#HF#3Du"  # Replace with your actual password from Secrets Manager
+  AWS_REGION: "us-east-1"  # Replace with your region
+  INSTANCE_IP: "52.204.237.32"  # Replace with your static IP
 
 jobs:
   deploy:
@@ -25,14 +28,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2: Configure AWS CLI
+      # Step 2: Configure AWS CLI (still needs AWS credentials as secrets for now)
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       # Step 3: Debug Environment Variables
       - name: Debug Environment Variables
@@ -43,7 +46,9 @@ jobs:
           echo "DB_PORT: $DB_PORT"
           echo "DB_NAME: $DB_NAME"
           echo "DB_USER: $DB_USER"
-          echo "DB_PASS: [hidden]"
+          echo "DB_PASS: $DB_PASS"  # Visible for testing
+          echo "AWS_REGION: $AWS_REGION"
+          echo "INSTANCE_IP: $INSTANCE_IP"
 
       # Step 4: Deploy Drupal Container on Lightsail
       - name: Deploy Drupal Container
@@ -98,5 +103,5 @@ jobs:
       # Step 6: Output URL
       - name: Output URL
         run: |
-          echo "Site deployed! URL: http://${{ secrets.INSTANCE_IP }}"
-          echo "Admin login: http://${{ secrets.INSTANCE_IP }}/user/login (admin/admin123)"
+          echo "Site deployed! URL: http://$INSTANCE_IP"
+          echo "Admin login: http://$INSTANCE_IP/user/login (admin/admin123)"
