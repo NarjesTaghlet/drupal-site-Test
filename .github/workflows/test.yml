@@ -9,7 +9,6 @@ on:
         default: 'jess'
 
 env:
-  # Hardcode these for testing; replace with real values from your Terraform outputs
   INSTANCE_NAME: "lightsail_19_test"  # e.g., from lightsail_${var.user_id}_${var.site_name}
   DOCKER_IMAGE: "jesstg/drupal-custom:latest"
   DB_HOST: "ls-b8b0bddca9b5f313e52ddba2652e47f2fd54a7d7.c43wcgu6gelw.us-east-1.rds.amazonaws.com"  # Replace with your database endpoint
@@ -74,49 +73,54 @@ jobs:
           echo "AWS_REGION: $AWS_REGION"
           echo "INSTANCE_IP: $INSTANCE_IP"
 
-    # Step 5: Deploy Drupal Container on Lightsail
+      # Step 5: Set up SSH Key
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa  # Add the SSH private key
+          chmod 600 ~/.ssh/id_rsa  # Secure the private key
+          ssh-keyscan -H $INSTANCE_IP >> ~/.ssh/known_hosts  # Add the instance to known_hosts to avoid SSH warnings
+
+      # Step 6: Deploy Drupal Container on Lightsail
       - name: Deploy Drupal Container
         run: |
-          aws lightsail send-command \
-            --instance-name "$INSTANCE_NAME" \
-            --command "bash -c '\
-              sudo docker stop \$(sudo docker ps -q) || true && \
-              sudo docker rm \$(sudo docker ps -aq) || true && \
-              if ! mountpoint -q /var/www/html; then \
-                sudo mkfs.ext4 /dev/xvdf && \
-                sudo mkdir -p /var/www/html && \
-                sudo mount /dev/xvdf /var/www/html && \
-                echo \"/dev/xvdf /var/www/html ext4 defaults,nofail 0 2\" | sudo tee -a /etc/fstab; \
-              fi && \
-              sudo mkdir -p /var/www/html/config /var/www/html/sites/default/files && \
-              sudo chown -R 33:33 /var/www/html/config /var/www/html/sites/default/files && \
-              sudo chmod -R 775 /var/www/html/config /var/www/html/sites/default/files && \
-              sudo docker pull $DOCKER_IMAGE && \
-              sudo docker run -d -p 80:80 \
-                -v /var/www/html/config:/var/www/html/config \
-                -v /var/www/html/sites/default/files:/var/www/html/sites/default/files \
-                -e DRUPAL_DB_HOST=\"$DB_HOST\" \
-                -e DRUPAL_DB_PORT=\"$DB_PORT\" \
-                -e DRUPAL_DB_NAME=\"$DB_NAME\" \
-                -e DRUPAL_DB_USER=\"$DB_USER\" \
-                -e DRUPAL_DB_PASS=\"$DB_PASS\" \
-                --name drupal \
-                $DOCKER_IMAGE && \
-              sleep 10 && \
-              sudo docker exec drupal /var/www/html/vendor/bin/drush site-install standard \
-                --db-url=\"mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME\" \
-                --account-name=admin \
-                --account-pass=admin123 \
-                --site-name=\"Drupal Site for ${{ github.event.inputs.username }}\" -y'"
-      # Step 6: Check Container Logs
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$INSTANCE_IP "bash -c '\
+            sudo docker stop \$(sudo docker ps -q) || true && \
+            sudo docker rm \$(sudo docker ps -aq) || true && \
+            if ! mountpoint -q /var/www/html; then \
+              sudo mkfs.ext4 /dev/xvdf && \
+              sudo mkdir -p /var/www/html && \
+              sudo mount /dev/xvdf /var/www/html && \
+              echo \"/dev/xvdf /var/www/html ext4 defaults,nofail 0 2\" | sudo tee -a /etc/fstab; \
+            fi && \
+            sudo mkdir -p /var/www/html/config /var/www/html/sites/default/files && \
+            sudo chown -R 33:33 /var/www/html/config /var/www/html/sites/default/files && \
+            sudo chmod -R 775 /var/www/html/config /var/www/html/sites/default/files && \
+            sudo docker pull $DOCKER_IMAGE && \
+            sudo docker run -d -p 80:80 \
+              -v /var/www/html/config:/var/www/html/config \
+              -v /var/www/html/sites/default/files:/var/www/html/sites/default/files \
+              -e DRUPAL_DB_HOST=\"$DB_HOST\" \
+              -e DRUPAL_DB_PORT=\"$DB_PORT\" \
+              -e DRUPAL_DB_NAME=\"$DB_NAME\" \
+              -e DRUPAL_DB_USER=\"$DB_USER\" \
+              -e DRUPAL_DB_PASS=\"$DB_PASS\" \
+              --name drupal \
+              $DOCKER_IMAGE && \
+            sleep 10 && \
+            sudo docker exec drupal /var/www/html/vendor/bin/drush site-install standard \
+              --db-url=\"mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME\" \
+              --account-name=admin \
+              --account-pass=admin123 \
+              --site-name=\"Drupal Site for ${{ github.event.inputs.username }}\" -y'"
+
+      # Step 7: Check Container Logs
       - name: Check Container Logs
         run: |
           sleep 60
-          aws lightsail send-command \
-            --instance-name "$INSTANCE_NAME" \
-            --command "sudo docker logs drupal"
+          ssh -i ~/.ssh/id_rsa ubuntu@$INSTANCE_IP "sudo docker logs drupal"
 
-      # Step 7: Output URL
+      # Step 8: Output URL
       - name: Output URL
         run: |
           echo "Site deployed! URL: http://$INSTANCE_IP"
