@@ -74,27 +74,23 @@ jobs:
           echo "AWS_REGION: $AWS_REGION"
           echo "INSTANCE_IP: $INSTANCE_IP"
 
-      # Step 5: Deploy Drupal Container on Lightsail
+     # Step 5: Deploy Drupal Container on Lightsail
       - name: Deploy Drupal Container
         run: |
           aws lightsail send-command \
             --instance-name "$INSTANCE_NAME" \
             --command "bash -c '\
-              # Stop and remove existing containers
               sudo docker stop \$(sudo docker ps -q) || true && \
               sudo docker rm \$(sudo docker ps -aq) || true && \
-              # Mount block storage at /var/www/html (if not already mounted)
               if ! mountpoint -q /var/www/html; then \
                 sudo mkfs.ext4 /dev/xvdf && \
                 sudo mkdir -p /var/www/html && \
                 sudo mount /dev/xvdf /var/www/html && \
                 echo \"/dev/xvdf /var/www/html ext4 defaults,nofail 0 2\" | sudo tee -a /etc/fstab; \
               fi && \
-              # Create subdirectories for persistence
               sudo mkdir -p /var/www/html/config /var/www/html/sites/default/files && \
               sudo chown -R 33:33 /var/www/html/config /var/www/html/sites/default/files && \
               sudo chmod -R 775 /var/www/html/config /var/www/html/sites/default/files && \
-              # Pull and run the Docker image
               sudo docker pull $DOCKER_IMAGE && \
               sudo docker run -d -p 80:80 \
                 -v /var/www/html/config:/var/www/html/config \
@@ -107,7 +103,6 @@ jobs:
                 --name drupal \
                 $DOCKER_IMAGE && \
               sleep 10 && \
-              # Run Drush site-install (Drush already in image)
               sudo docker exec drupal /var/www/html/vendor/bin/drush site-install standard \
                 --db-url=\"mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME\" \
                 --account-name=admin \
