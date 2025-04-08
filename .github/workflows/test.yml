@@ -1,4 +1,4 @@
-name: Deploy Drupal Site
+name: Test
 
 on:
   workflow_dispatch:
