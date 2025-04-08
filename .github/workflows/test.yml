@@ -1,0 +1,102 @@
+name: Deploy Drupal Site
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'Username for the Drupal site (e.g., jess)'
+        required: true
+        default: 'jess'
+
+env:
+  INSTANCE_NAME: ${{ secrets.INSTANCE_NAME }}
+  DOCKER_IMAGE: jesstg/drupal-custom:latest
+  DB_HOST: ${{ secrets.DB_HOST }}
+  DB_PORT: ${{ secrets.DB_PORT }}
+  DB_NAME: ${{ secrets.DB_NAME }}
+  DB_USER: ${{ secrets.DB_USER }}
+  DB_PASS: ${{ secrets.DB_PASS }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Configure AWS CLI
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Step 3: Debug Environment Variables
+      - name: Debug Environment Variables
+        run: |
+          echo "INSTANCE_NAME: $INSTANCE_NAME"
+          echo "DOCKER_IMAGE: $DOCKER_IMAGE"
+          echo "DB_HOST: $DB_HOST"
+          echo "DB_PORT: $DB_PORT"
+          echo "DB_NAME: $DB_NAME"
+          echo "DB_USER: $DB_USER"
+          echo "DB_PASS: [hidden]"
+
+      # Step 4: Deploy Drupal Container on Lightsail
+      - name: Deploy Drupal Container
+        run: |
+          aws lightsail send-command \
+            --instance-name "$INSTANCE_NAME" \
+            --command "bash -c '\
+              # Stop and remove existing containers
+              sudo docker stop \$(sudo docker ps -q) || true && \
+              sudo docker rm \$(sudo docker ps -aq) || true && \
+              # Mount the block storage disk (if not already mounted)
+              if ! mountpoint -q /mnt/drupal-data; then \
+                sudo mkfs.ext4 /dev/xvdf && \
+                sudo mkdir -p /mnt/drupal-data && \
+                sudo mount /dev/xvdf /mnt/drupal-data && \
+                echo \"/dev/xvdf /mnt/drupal-data ext4 defaults,nofail 0 2\" | sudo tee -a /etc/fstab; \
+              fi && \
+              # Create directories for persistence
+              sudo mkdir -p /mnt/drupal-data/config /mnt/drupal-data/sites/default/files && \
+              sudo chown -R 33:33 /mnt/drupal-data/config /mnt/drupal-data/sites/default/files && \
+              sudo chmod -R 775 /mnt/drupal-data/config /mnt/drupal-data/sites/default/files && \
+              # Pull and run the Docker image
+              sudo docker pull $DOCKER_IMAGE && \
+              sudo docker run -d -p 80:80 \
+                -v /mnt/drupal-data/config:/var/www/html/config \
+                -v /mnt/drupal-data/sites/default/files:/var/www/html/sites/default/files \
+                -e DRUPAL_DB_HOST=\"$DB_HOST\" \
+                -e DRUPAL_DB_PORT=\"$DB_PORT\" \
+                -e DRUPAL_DB_NAME=\"$DB_NAME\" \
+                -e DRUPAL_DB_USER=\"$DB_USER\" \
+                -e DRUPAL_DB_PASS=\"$DB_PASS\" \
+                --name drupal \
+                $DOCKER_IMAGE && \
+              # Wait for container to start
+              sleep 10 && \
+              # Install Drupal with Drush
+              sudo docker exec drupal composer require drush/drush && \
+              sudo docker exec drupal /var/www/html/vendor/bin/drush site-install standard \
+                --db-url=\"mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME\" \
+                --account-name=admin \
+                --account-pass=admin123 \
+                --site-name=\"Drupal Site for ${{ github.event.inputs.username }}\" -y'"
+
+      # Step 5: Check Container Logs
+      - name: Check Container Logs
+        run: |
+          sleep 60  # Wait for Drupal to initialize
+          aws lightsail send-command \
+            --instance-name "$INSTANCE_NAME" \
+            --command "sudo docker logs drupal"
+
+      # Step 6: Output URL
+      - name: Output URL
+        run: |
+          echo "Site deployed! URL: http://${{ secrets.INSTANCE_IP }}"
+          echo "Admin login: http://${{ secrets.INSTANCE_IP }}/user/login (admin/admin123)"
