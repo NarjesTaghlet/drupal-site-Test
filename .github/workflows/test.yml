@@ -84,7 +84,7 @@ jobs:
       # Step 6: Deploy Drupal Container on Lightsail
       - name: Deploy Drupal Container
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$INSTANCE_IP "bash -c '\
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP "bash -c '\
             sudo docker stop \$(sudo docker ps -q) || true && \
             sudo docker rm \$(sudo docker ps -aq) || true && \
             if ! mountpoint -q /var/www/html; then \
