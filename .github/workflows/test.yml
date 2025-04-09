@@ -26,10 +26,16 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v3
 
-
+      - name: 🐳 Build and Push Docker Image
+        run: |
+          echo "Building Docker image..."
+          docker login -u "${{ secrets.DOCKER_USERNAME }}" -p "${{ secrets.DOCKER_PASSWORD }}"
+          docker build -t $DOCKER_USERNAME/drupal-custom:latest .
+          docker push $DOCKER_USERNAME/drupal-custom:latest
 
       - name: 🔐 Setup SSH Key
         run: |
+          echo "Setting up SSH key..."
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
@@ -41,12 +47,10 @@ jobs:
             echo "🔍 Debugging environment..."
             echo "Docker version:"
             docker --version
-            echo "Checking disk mount..."
-            df -h /mnt/drupal-data || echo "/mnt/drupal-data not mounted"
-            echo "Checking /mnt/drupal-data permissions..."
-            ls -ld /mnt/drupal-data || echo "/mnt/drupal-data does not exist"
             echo "Checking network connectivity to RDS..."
             nc -zv $DB_HOST $DB_PORT || echo "Cannot connect to RDS"
+            echo "Testing database connection manually..."
+            mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p'$DB_PASSWORD' -e "SHOW DATABASES;" || echo "Failed to connect to database"
 
             echo "🔧 Mounting disk if not already..."
             if ! mountpoint -q /mnt/drupal-data; then
@@ -89,7 +93,11 @@ jobs:
               -e DB_NAME="$DB_NAME" \
               -e DB_USER="$DB_USER" \
               -e DB_PASSWORD='$DB_PASSWORD' \
+              -e AWS_REGION="$AWS_REGION" \
               $DOCKER_IMAGE || { echo "Failed to run Docker container"; exit 1; }
+
+            echo "🔍 Waiting for Drupal to fully initialize..."
+            sleep 30
 
             echo "🔍 Checking container status..."
             docker ps -a
@@ -97,12 +105,33 @@ jobs:
             echo "🔍 Checking container logs..."
             docker logs drupal || echo "No logs available"
 
+            echo "🔍 Checking Drupal installation status..."
+            RETRY_COUNT=0
+            MAX_RETRIES=5
+            until [ $RETRY_COUNT -ge $MAX_RETRIES ]; do
+              DRUSH_STATUS=$(docker exec drupal vendor/bin/drush status --fields=bootstrap --format=string 2>/dev/null)
+              if [ "$DRUSH_STATUS" = "Successful" ]; then
+                echo "Drupal is fully installed and ready!"
+                break
+              fi
+              echo "Drupal not ready yet, retrying in 10 seconds... (attempt $((RETRY_COUNT+1))/$MAX_RETRIES)"
+              sleep 10
+              RETRY_COUNT=$((RETRY_COUNT+1))
+            done
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "Error: Drupal failed to initialize after $MAX_RETRIES attempts."
+              exit 1
+            fi
+
             echo "🔧 Configuring Drupal to allow image uploads..."
             docker exec drupal vendor/bin/drush config-set filter.format.basic_html editor.image_upload.status 1 -y || echo "Failed to set image upload status"
             docker exec drupal vendor/bin/drush config-set filter.format.basic_html editor.image_upload.directory inline-images -y || echo "Failed to set image upload directory"
             docker exec drupal vendor/bin/drush config-set filter.format.basic_html editor.image_upload.max_size 2097152 -y || echo "Failed to set image upload max size"
             docker exec drupal vendor/bin/drush config-set filter.format.basic_html editor.image_upload.extensions "jpg,png,gif" -y || echo "Failed to set image upload extensions"
             docker exec drupal vendor/bin/drush cr || echo "Failed to clear cache"
+
+            echo "🔍 Verifying image upload configuration..."
+            docker exec drupal vendor/bin/drush config-get filter.format.basic_html || echo "Failed to get image upload configuration"
 
             echo "✅ Deployment completed!"
           EOF
