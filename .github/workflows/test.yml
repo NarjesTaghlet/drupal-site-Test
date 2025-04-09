@@ -21,23 +21,24 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: 📥 Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up SSH
+      - name: 🔐 Setup SSH Key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan $INSTANCE_IP >> ~/.ssh/known_hosts
+          ssh-keyscan -H $INSTANCE_IP >> ~/.ssh/known_hosts
 
-      - name: Deploy Drupal Container
+      - name: 🚀 Deploy Drupal Container
         run: |
-          ssh -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP <<'EOF'
+          ssh -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP <<EOF
             echo "🔧 Mounting disk if not already..."
             if ! mountpoint -q /mnt/drupal-data; then
-              sudo mkfs.ext4 /dev/xvdf || echo "Disk already formatted"
+              sudo mkfs.ext4 /dev/xvdf || echo "Already formatted"
               sudo mkdir -p /mnt/drupal-data/config /mnt/drupal-data/files
               sudo mount /dev/xvdf /mnt/drupal-data
               echo "/dev/xvdf /mnt/drupal-data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
@@ -47,13 +48,13 @@ jobs:
             sudo chown -R 33:33 /mnt/drupal-data
             sudo chmod -R 775 /mnt/drupal-data
 
-            echo "🐳 Pulling Docker image..."
+            echo "🐳 Pulling Docker image: $DOCKER_IMAGE"
             docker pull $DOCKER_IMAGE
 
-            echo "🧹 Stopping previous container..."
+            echo "🧹 Stopping previous container if exists"
             docker stop drupal || true && docker rm drupal || true
 
-            echo "🚀 Running Drupal container..."
+            echo "🏗️ Running new Drupal container..."
             docker run -d \
               --name drupal \
               -p 80:80 \
@@ -66,10 +67,10 @@ jobs:
               -e DRUPAL_DB_PASS="$DB_PASS" \
               $DOCKER_IMAGE
 
-            echo "✅ Deployment complete"
+            echo "✅ Deployment completed!"
           EOF
 
-      - name: Output Site Info
+      - name: 🌐 Output Site URL
         run: |
-          echo "🌐 Site URL: http://$INSTANCE_IP"
-          echo "🔐 Admin login: http://$INSTANCE_IP/user/login"
+          echo "✅ Site deployed at: http://$INSTANCE_IP"
+          echo "🔐 Admin Login: http://$INSTANCE_IP/user/login"
