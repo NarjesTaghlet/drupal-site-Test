@@ -70,8 +70,7 @@ jobs:
             ls -ld /mnt/drupal-data/files
             ls -ld /mnt/drupal-data/config
 
-            echo "🧹 Stopping previous container if exists..."
-            docker stop drupal || true && docker rm drupal || true
+           
 
             echo "🐳 Pulling Docker image: $DOCKER_IMAGE..."
             docker pull $DOCKER_IMAGE || { echo "Failed to pull Docker image"; exit 1; }
