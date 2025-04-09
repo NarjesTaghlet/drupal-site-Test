@@ -13,7 +13,7 @@ env:
   DOCKER_IMAGE: "jesstg/drupal-custom:latest"
   DB_HOST: "ls-fb5cb90efe0fceec734140c8f907aadc57c8313c.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
   DB_PORT: "3306"
-  DB_NAME: "db-19-test"
+  DB_NAME: "db19test"
   DB_USER: "user"
   DB_PASSWORD: '9huJBUHbNe(T$TZu'
   AWS_REGION: "us-east-1"
