@@ -26,6 +26,12 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v3
 
+      - name: 🐳 Build and Push Docker Image
+        run: |
+          docker login -u "${{ secrets.DOCKER_USERNAME }}" -p "${{ secrets.DOCKER_PASSWORD }}"
+          docker build -t $DOCKER_USERNAME/drupal-custom:latest .
+          docker push $DOCKER_USERNAME/drupal-custom:latest
+
       - name: 🔐 Setup SSH Key
         run: |
           mkdir -p ~/.ssh
@@ -36,6 +42,16 @@ jobs:
       - name: 🚀 Deploy Drupal Container
         run: |
           ssh -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP <<EOF
+            echo "🔍 Debugging environment..."
+            echo "Docker version:"
+            docker --version
+            echo "Checking disk mount..."
+            df -h /mnt/drupal-data || echo "/mnt/drupal-data not mounted"
+            echo "Checking /mnt/drupal-data permissions..."
+            ls -ld /mnt/drupal-data || echo "/mnt/drupal-data does not exist"
+            echo "Checking network connectivity to RDS..."
+            nc -zv $DB_HOST $DB_PORT || echo "Cannot connect to RDS"
+
             echo "🔧 Mounting disk if not already..."
             if ! mountpoint -q /mnt/drupal-data; then
               sudo mkfs.ext4 /dev/xvdf || echo "Already formatted"
@@ -44,29 +60,53 @@ jobs:
               echo "/dev/xvdf /mnt/drupal-data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
             fi
 
-            echo "📁 Preparing folders..."
+            echo "📁 Preparing folders and permissions..."
+            sudo mkdir -p /mnt/drupal-data/files/inline-images
+            sudo mkdir -p /mnt/drupal-data/config/sync
             sudo chown -R 33:33 /mnt/drupal-data
             sudo chmod -R 775 /mnt/drupal-data
+            sudo chown -R 33:33 /mnt/drupal-data/files/inline-images
+            sudo chmod -R 775 /mnt/drupal-data/files/inline-images
+            sudo chown -R 33:33 /mnt/drupal-data/config/sync
+            sudo chmod -R 775 /mnt/drupal-data/config/sync
 
-            echo "🐳 Pulling Docker image: $DOCKER_IMAGE"
-            docker pull $DOCKER_IMAGE
+            echo "🔍 Verifying directories after setup..."
+            ls -ld /mnt/drupal-data
+            ls -ld /mnt/drupal-data/files
+            ls -ld /mnt/drupal-data/config
 
-            echo "🧹 Stopping previous container if exists"
+            echo "🧹 Stopping previous container if exists..."
             docker stop drupal || true && docker rm drupal || true
+
+            echo "🐳 Pulling Docker image: $DOCKER_IMAGE..."
+            docker pull $DOCKER_IMAGE || { echo "Failed to pull Docker image"; exit 1; }
 
             echo "🏗️ Running new Drupal container..."
             docker run -d \
               --name drupal \
               -p 80:80 \
               --restart unless-stopped \
-              -v /mnt/drupal-data/config:/var/www/html/sites/default \
               -v /mnt/drupal-data/files:/var/www/html/sites/default/files \
+              -v /mnt/drupal-data/config:/var/www/html/config \
               -e DB_HOST="$DB_HOST" \
               -e DB_PORT="$DB_PORT" \
               -e DB_NAME="$DB_NAME" \
               -e DB_USER="$DB_USER" \
               -e DB_PASSWORD="$DB_PASSWORD" \
-              $DOCKER_IMAGE
+              $DOCKER_IMAGE || { echo "Failed to run Docker container"; exit 1; }
+
+            echo "🔍 Checking container status..."
+            docker ps -a
+
+            echo "🔍 Checking container logs..."
+            docker logs drupal || echo "No logs available"
+
+            echo "🔧 Configuring Drupal to allow image uploads..."
+            docker exec drupal vendor/bin/drush config-set filter.format.basic_html editor.image_upload.status 1 -y || echo "Failed to set image upload status"
+            docker exec drupal vendor/bin/drush config-set filter.format.basic_html editor.image_upload.directory inline-images -y || echo "Failed to set image upload directory"
+            docker exec drupal vendor/bin/drush config-set filter.format.basic_html editor.image_upload.max_size 2097152 -y || echo "Failed to set image upload max size"
+            docker exec drupal vendor/bin/drush config-set filter.format.basic_html editor.image_upload.extensions "jpg,png,gif" -y || echo "Failed to set image upload extensions"
+            docker exec drupal vendor/bin/drush cr || echo "Failed to clear cache"
 
             echo "✅ Deployment completed!"
           EOF
