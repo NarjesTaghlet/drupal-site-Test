@@ -58,6 +58,7 @@ jobs:
             docker run -d \
               --name drupal \
               -p 80:80 \
+              --restart unless-stopped \
               -v /mnt/drupal-data/config:/var/www/html/sites/default \
               -v /mnt/drupal-data/files:/var/www/html/sites/default/files \
               -e DB_HOST="$DB_HOST" \
