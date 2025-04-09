@@ -9,13 +9,13 @@ on:
         default: 'jess'
 
 env:
-  INSTANCE_IP: "44.215.253.140"
+  INSTANCE_IP: "3.211.196.38"
   DOCKER_IMAGE: "jesstg/drupal-custom:latest"
-  DB_HOST: "ls-4315f3b2eae2feaeb90627a24460a76abe81fa30.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
+  DB_HOST: "ls-fb5cb90efe0fceec734140c8f907aadc57c8313c.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
   DB_PORT: "3306"
   DB_NAME: "db19test"
   DB_USER: "user"
-  DB_PASSWORD: "H_!Re1+i9oVrDlDX"
+  DB_PASSWORD: "9huJBUHbNe(T$TZu"
   AWS_REGION: "us-east-1"
 
 jobs:
