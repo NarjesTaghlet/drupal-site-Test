@@ -15,7 +15,7 @@ env:
   DB_PORT: "3306"
   DB_NAME: "db19test"
   DB_USER: "user"
-  DB_PASS: "H_!Re1+i9oVrDlDX"
+  DB_PASSWORD: "H_!Re1+i9oVrDlDX"
   AWS_REGION: "us-east-1"
 
 jobs:
