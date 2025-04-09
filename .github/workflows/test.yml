@@ -60,11 +60,11 @@ jobs:
               -p 80:80 \
               -v /mnt/drupal-data/config:/var/www/html/sites/default \
               -v /mnt/drupal-data/files:/var/www/html/sites/default/files \
-              -e DRUPAL_DB_HOST="$DB_HOST" \
-              -e DRUPAL_DB_PORT="$DB_PORT" \
-              -e DRUPAL_DB_NAME="$DB_NAME" \
-              -e DRUPAL_DB_USER="$DB_USER" \
-              -e DRUPAL_DB_PASS="$DB_PASS" \
+              -e DB_HOST="$DB_HOST" \
+              -e DB_PORT="$DB_PORT" \
+              -e DB_NAME="$DB_NAME" \
+              -e DB_USER="$DB_USER" \
+              -e DB_PASSWORD="$DB_PASSWORD" \
               $DOCKER_IMAGE
 
             echo "✅ Deployment completed!"
