@@ -118,8 +118,13 @@ jobs:
             docker exec drupal vendor/bin/drush --root=/var/www/html/web config-set filter.format.basic_html editor.image_upload.extensions "jpg,png,gif" -y
             docker exec drupal vendor/bin/drush --root=/var/www/html/web cr
 
+            docker exec drupal vendor/bin/drush config:set field.field.node.Article.image_field file_directory 'inline-images'
+
+
             echo "✅ Deployment completed!"
           EOF
+          
+ 
 
       - name: 🌐 Output Site URL
         run: |
