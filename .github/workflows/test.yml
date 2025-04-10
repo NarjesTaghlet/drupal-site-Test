@@ -11,11 +11,11 @@ on:
 env:
   INSTANCE_IP: "3.211.196.38"
   DOCKER_IMAGE: "jesstg/drupal-custom:latest"
-  DB_HOST: "ls-fb5cb90efe0fceec734140c8f907aadc57c8313c.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
+  DB_HOST: "ls-3f45b72157ba66d3d5060e529dc58c6aa1cc0dba.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
   DB_PORT: "3306"
   DB_NAME: "db19test"
   DB_USER: "user"
-  DB_PASSWORD: '9huJBUHbNe(T$TZu'
+  DB_PASSWORD: 't)x(hRUXfNLh_hqm'
   AWS_REGION: "us-east-1"
 
 jobs:
