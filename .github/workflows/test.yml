@@ -84,24 +84,24 @@ jobs:
             docker ps -a
             docker logs drupal || echo "No logs available"
 
-            echo "🔍 Checking Drupal installation status..."
-            RETRY_COUNT=0
-            MAX_RETRIES=10
-            until [ \$RETRY_COUNT -ge \$MAX_RETRIES ]; do
-              DRUSH_STATUS=\$(docker exec drupal vendor/bin/drush --root=/var/www/html/web status --fields=bootstrap --format=string 2>/dev/null)
-              if [ "\$DRUSH_STATUS" = "Successful" ]; then
-                echo "Drupal is fully installed and ready!"
-                break
-              fi
-              echo "Drupal not ready yet, retrying in 10 seconds... (attempt \$((RETRY_COUNT+1))/\$MAX_RETRIES)"
-              sleep 10
-              RETRY_COUNT=\$((RETRY_COUNT+1))
-            done
-            if [ \$RETRY_COUNT -ge \$MAX_RETRIES ]; then
-              echo "Error: Drupal failed to initialize after \$MAX_RETRIES attempts."
-              docker logs drupal
-              exit 1
-            fi
+            # echo "🔍 Checking Drupal installation status..."
+            # RETRY_COUNT=0
+            # MAX_RETRIES=10
+            # until [ \$RETRY_COUNT -ge \$MAX_RETRIES ]; do
+            #   DRUSH_STATUS=\$(docker exec drupal vendor/bin/drush --root=/var/www/html/web status --fields=bootstrap --format=string 2>/dev/null)
+            #   if [ "\$DRUSH_STATUS" = "Successful" ]; then
+            #     echo "Drupal is fully installed and ready!"
+            #     break
+            #   fi
+            #   echo "Drupal not ready yet, retrying in 10 seconds... (attempt \$((RETRY_COUNT+1))/\$MAX_RETRIES)"
+            #   sleep 10
+            #   RETRY_COUNT=\$((RETRY_COUNT+1))
+            # done
+            # if [ \$RETRY_COUNT -ge \$MAX_RETRIES ]; then
+            #   echo "Error: Drupal failed to initialize after \$MAX_RETRIES attempts."
+            #   docker logs drupal
+            #   exit 1
+            # fi
 
             echo "🔧 Ensuring permissions inside the container..."
             docker exec drupal mkdir -p /var/www/html/web/config/sync
