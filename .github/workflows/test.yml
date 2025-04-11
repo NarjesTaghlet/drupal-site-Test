@@ -71,7 +71,6 @@ jobs:
               --restart unless-stopped \
               -v /mnt/drupal-data/files:/var/www/html/web/sites/default/files \
               -v /mnt/drupal-data/config:/var/www/html/web/config \
-              -v /mnt/drupal-data/web:/var/www/html/web \
               -e DB_HOST="$DB_HOST" \
               -e DB_PORT="$DB_PORT" \
               -e DB_NAME="$DB_NAME" \
