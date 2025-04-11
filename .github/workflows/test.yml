@@ -10,8 +10,8 @@ on:
 
 env:
   INSTANCE_IP: "3.232.84.59"
-  DOCKER_IMAGE: "jesstg/drupal-custom:latest"
-  #DOCKER_IMAGE: "jesstg/drupal-site:latest"
+  #DOCKER_IMAGE: "jesstg/drupal-custom:latest"
+  DOCKER_IMAGE: "jesstg/drupal-site:latest"
   DB_HOST: "ls-3f45b72157ba66d3d5060e529dc58c6aa1cc0dba.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
   DB_PORT: "3306"
   DB_NAME: "db19test"
