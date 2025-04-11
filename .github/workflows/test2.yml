@@ -64,7 +64,8 @@ jobs:
               sudo chown ec2-user:ec2-user /opt/drupal-repo
               cd /opt/drupal-repo
               git init
-              git remote set-url origin git@github.com:NarjesTaghlet/test-drupal-deploy.git
+              #git remote set-url origin git@github.com:NarjesTaghlet/test-drupal-deploy.git
+              git remote add origin https://${{ secrets.GH_TOKEN }}@github.com/test-drupal-deploy.git || git remote set-url origin https://${{ secrets.GH_TOKEN }}@github.com/test-drupal-deploy.git
               git pull origin main
             fi
 
