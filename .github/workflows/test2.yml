@@ -1,4 +1,4 @@
-name: Deploy Drupal Site to AWS Lightsail
+name: Deploy Drupal Site to AWS Lightsail 2
 
 on:
   push:
