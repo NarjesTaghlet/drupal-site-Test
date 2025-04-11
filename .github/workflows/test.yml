@@ -66,21 +66,38 @@ jobs:
             docker pull $DOCKER_IMAGE || { echo "Failed to pull Docker image"; exit 1; }
 
             echo "🏗️ Running new Drupal container..."
+            # docker run -d \
+            #   --name drupal \
+            #   -p 80:80 \
+            #   --restart unless-stopped \
+            #   -v /mnt/drupal-data/modules:/var/www/html/web/modules/custom \
+            #   -v /mnt/drupal-data/themes:/var/www/html/web/themes/custom \
+            #   -v /mnt/drupal-data/files:/var/www/html/web/sites/default/files \
+            #   -v /mnt/drupal-data/config:/var/www/html/web/config \
+            #   -e DB_HOST="$DB_HOST" \
+            #   -e DB_PORT="$DB_PORT" \
+            #   -e DB_NAME="$DB_NAME" \
+            #   -e DB_USER="$DB_USER" \
+            #   -e DB_PASSWORD='$DB_PASSWORD' \
+            #   -e AWS_REGION="$AWS_REGION" \
+            #   $DOCKER_IMAGE || { echo "Failed to run Docker container"; exit 1; }
+
             docker run -d \
-              --name drupal \
-              -p 80:80 \
-              --restart unless-stopped \
-              -v /mnt/drupal-data/modules:/var/www/html/web/modules/custom \
-              -v /mnt/drupal-data/themes:/var/www/html/web/themes/custom \
-              -v /mnt/drupal-data/files:/var/www/html/web/sites/default/files \
-              -v /mnt/drupal-data/config:/var/www/html/web/config \
-              -e DB_HOST="$DB_HOST" \
-              -e DB_PORT="$DB_PORT" \
-              -e DB_NAME="$DB_NAME" \
-              -e DB_USER="$DB_USER" \
-              -e DB_PASSWORD='$DB_PASSWORD' \
-              -e AWS_REGION="$AWS_REGION" \
-              $DOCKER_IMAGE || { echo "Failed to run Docker container"; exit 1; }
+                --name drupal \
+                -p 80:80 \
+                --restart unless-stopped \
+                -v /home/ec2-user/drupal-site:/var/www/html/web \
+                -v /mnt/drupal-data/modules:/var/www/html/web/modules/custom \
+                -v /mnt/drupal-data/themes:/var/www/html/web/themes/custom \
+                -v /mnt/drupal-data/files:/var/www/html/web/sites/default/files \
+                -v /mnt/drupal-data/config:/var/www/html/web/config \
+                -e DB_HOST="$DB_HOST" \
+                -e DB_PORT="$DB_PORT" \
+                -e DB_NAME="$DB_NAME" \
+                -e DB_USER="$DB_USER" \
+                -e DB_PASSWORD='$DB_PASSWORD' \
+                $DOCKER_IMAGE
+
 
             echo "🔍 Waiting for Drupal to fully initialize..."
             sleep 60
