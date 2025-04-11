@@ -69,6 +69,7 @@ jobs:
               --name drupal \
               -p 80:80 \
               --restart unless-stopped \
+              -v /mnt/drupal-data/web:/var/www/html/web \
               -v /mnt/drupal-data/files:/var/www/html/web/sites/default/files \
               -v /mnt/drupal-data/config:/var/www/html/web/config \
               -e DB_HOST="$DB_HOST" \
