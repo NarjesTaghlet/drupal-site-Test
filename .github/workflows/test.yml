@@ -9,15 +9,15 @@ on:
         default: 'jess'
 
 env:
-  INSTANCE_IP: "3.232.84.59"
   #DOCKER_IMAGE: "jesstg/drupal-custom:latest"
   #DOCKER_IMAGE: "jesstg/drupal-site:latest"
-  DOCKER_IMAGE: "jesstg/drupal-test:latest"
-  DB_HOST: "ls-3f45b72157ba66d3d5060e529dc58c6aa1cc0dba.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
+  INSTANCE_IP: "54.236.119.110"
+  DOCKER_IMAGE: "jesstg/drupal-site:latest"  # Ton compte Docker Hub
+  DB_HOST: "ls-b1475f0fea6d2c6173e7bf79acb8c86e6539caad.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
   DB_PORT: "3306"
   DB_NAME: "db19test"
   DB_USER: "user"
-  DB_PASSWORD: 't)x(hRUXfNLh_hqm'
+  DB_PASSWORD: 'UJPV!_6bzzgDlDEA'
   AWS_REGION: "us-east-1"
 
 jobs:
