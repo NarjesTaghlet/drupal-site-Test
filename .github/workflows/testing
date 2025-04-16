@@ -1,0 +1,155 @@
+name: Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'Drupal site username (e.g., jess)'
+        required: true
+        default: 'jess'
+      instance_ip:
+        description: 'Lightsail Instance Public IP'
+        required: true
+      db_host:
+        description: 'Database Host'
+        required: true
+      db_port:
+        description: 'Database Port'
+        required: true
+      db_name:
+        description: 'Database Name'
+        required: true
+      db_user:
+        description: 'Database Username'
+        required: true
+      db_password:
+        description: 'Database Password'
+        required: true
+      dns_record:
+        description: 'DNS Record'
+        required: true
+      www_dns_record:
+        description: 'WWW DNS Record'
+        required: true
+      instance_name:
+        description: 'Instance Name'
+        required: true
+
+env:
+  DOCKER_IMAGE: "jesstg/drupal-test:latest"
+  AWS_REGION: "us-east-1"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🔐 Setup SSH Key
+        run: |
+          echo "Setting up SSH key..."
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ github.event.inputs.instance_ip }} >> ~/.ssh/known_hosts
+
+      - name: 🚀 Deploy Drupal Container
+        run: |
+          ssh -i ~/.ssh/id_rsa ec2-user@${{ github.event.inputs.instance_ip }} <<EOF
+            echo "🔍 Debugging environment..."
+            docker --version
+            nc -zv ${{ github.event.inputs.db_host }} ${{ github.event.inputs.db_port }} || echo "Cannot connect to RDS"
+            mysql -h ${{ github.event.inputs.db_host }} -P ${{ github.event.inputs.db_port }} -u ${{ github.event.inputs.db_user }} -p'${{ github.event.inputs.db_password }}' -e "SHOW DATABASES;" || echo "Failed to connect to database"
+
+            echo "🔧 Mounting disk if not already..."
+            if ! mountpoint -q /mnt/drupal-data; then
+              sudo mkfs.ext4 /dev/nvme1n1 || echo "Already formatted"
+              sudo mkdir -p /mnt/drupal-data/config /mnt/drupal-data/files
+              sudo mount /dev/nvme1n1 /mnt/drupal-data
+              echo "/dev/nvme1n1 /mnt/drupal-data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
+            fi
+
+            echo "📁 Preparing folders and permissions..."
+            sudo mkdir -p /mnt/drupal-data/modules
+            sudo mkdir -p /mnt/drupal-data/themes
+            sudo mkdir -p /mnt/drupal-data/files/inline-images
+            sudo mkdir -p /mnt/drupal-data/config/sync
+            sudo chown -R 33:33 /mnt/drupal-data
+            sudo chmod -R 775 /mnt/drupal-data
+
+            echo "🧹 Stopping previous container if exists..."
+            docker stop drupal || true && docker rm drupal || true
+
+            echo "🐳 Pulling Docker image: $DOCKER_IMAGE..."
+            docker pull $DOCKER_IMAGE || { echo "Failed to pull Docker image"; exit 1; }
+
+            echo "🏗️ Running new Drupal container..."
+            docker run -d \
+              --name drupal \
+              -p 80:80 \
+              --restart unless-stopped \
+              -v /mnt/drupal-data/modules:/var/www/html/web/modules/custom \
+              -v /mnt/drupal-data/themes:/var/www/html/web/themes/custom \
+              -v /mnt/drupal-data/files:/var/www/html/web/sites/default/files \
+              -v /mnt/drupal-data/config:/var/www/html/web/config \
+              -e DB_HOST="${{ github.event.inputs.db_host }}" \
+              -e DB_PORT="${{ github.event.inputs.db_port }}" \
+              -e DB_NAME="${{ github.event.inputs.db_name }}" \
+              -e DB_USER="${{ github.event.inputs.db_user }}" \
+              -e DB_PASSWORD="${{ github.event.inputs.db_password }}" \
+              -e AWS_REGION="$AWS_REGION" \
+              $DOCKER_IMAGE || { echo "Failed to run Docker container"; exit 1; }
+
+            echo "🔍 Waiting for Drupal to fully initialize..."
+            sleep 60
+
+            echo "🔍 Checking container status..."
+            docker ps -a
+            docker logs drupal || echo "No logs available"
+
+            echo "🔍 Checking Drupal installation status..."
+            RETRY_COUNT=0
+            MAX_RETRIES=10
+            until [ \$RETRY_COUNT -ge \$MAX_RETRIES ]; do
+              DRUSH_STATUS=\$(docker exec drupal vendor/bin/drush --root=/var/www/html/web status --fields=bootstrap --format=string 2>/dev/null)
+              if [ "\$DRUSH_STATUS" = "Successful" ]; then
+                echo "Drupal is fully installed and ready!"
+                break
+              fi
+              echo "Drupal not ready yet, retrying in 10 seconds... (attempt \$((RETRY_COUNT+1))/\$MAX_RETRIES)"
+              sleep 10
+              RETRY_COUNT=\$((RETRY_COUNT+1))
+            done
+            if [ \$RETRY_COUNT -ge \$MAX_RETRIES ]; then
+              echo "Error: Drupal failed to initialize after \$MAX_RETRIES attempts."
+              docker logs drupal
+              exit 1
+            fi
+
+            echo "🔧 Ensuring permissions inside the container..."
+            docker exec drupal mkdir -p /var/www/html/web/config/sync
+            docker exec drupal chown -R www-data:www-data /var/www/html/web/config
+            docker exec drupal chmod -R 775 /var/www/html/web/config
+            docker exec drupal chown -R www-data:www-data /var/www/html/web/sites/default/files
+            docker exec drupal chmod -R 775 /var/www/html/web/sites/default/files
+
+            echo "🔧 Configuring Drupal to allow image uploads..."
+            docker exec drupal vendor/bin/drush --root=/var/www/html/web config-set filter.format.basic_html editor.image_upload.status 1 -y
+            docker exec drupal vendor/bin/drush --root=/var/www/html/web config-set filter.format.basic_html editor.image_upload.directory inline-images -y
+            docker exec drupal vendor/bin/drush --root=/var/www/html/web config-set filter.format.basic_html editor.image_upload.max_size 2097152 -y
+            docker exec drupal vendor/bin/drush --root=/var/www/html/web config-set filter.format.basic_html editor.image_upload.extensions "jpg,png,gif" -y
+            docker exec drupal vendor/bin/drush --root=/var/www/html/web cr
+
+            echo "🔧 Setting image field upload directory..."
+            docker exec drupal vendor/bin/drush --root=/var/www/html/web config-set field.field.node.article.field_image settings.file_directory inline-images -y
+            docker exec drupal vendor/bin/drush --root=/var/www/html/web cr
+
+            echo "✅ Deployment completed!"
+          EOF
+
+      - name: 🌐 Output Site URL
+        run: |
+          echo "✅ Site deployed at: http://${{ github.event.inputs.dns_record }}"
+          echo "🔐 Admin Login: http://${{ github.event.inputs.dns_record }}/user/login"
