@@ -12,7 +12,7 @@ env:
   DB_NAME: ${{ github.event.client_payload.db_name }}
   DB_USER: ${{ github.event.client_payload.db_user }}
   #DB_PASSWORD: ${{ github.event.client_payload.db_password }}
-  DB_PASSWORD: ${{ format('''{0}''', github.event.client_payload.db_password | replace("'", "'\\''")) }}
+  DB_PASSWORD: ${{ format('''{0}''', github.event.client_payload.db_password.replace('''''', '''''''''')) }}
   AWS_REGION: "us-east-1"
 
 jobs:
