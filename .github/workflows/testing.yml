@@ -37,7 +37,8 @@ jobs:
           
           # Connection test with verbose output
           echo "🔄 Testing SSH connection..."
-          ssh -vvv -o BatchMode=yes -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP exit  # Change "ubuntu" to your AMI's default user    
+          ssh -vvv -o BatchMode=yes -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP exit  # Change "ubuntu" to your AMI's default user 
+          echo $DB_PASSWORD
 
       - name: 🚀 Deploy Drupal Container
         run: |
