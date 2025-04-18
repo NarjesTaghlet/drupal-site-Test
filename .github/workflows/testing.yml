@@ -30,6 +30,20 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $INSTANCE_IP >> ~/.ssh/known_hosts
 
+      - name: 🔐 Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh  # REQUIRED for SSH to work
+          # Use printf to preserve newlines from secrets
+          printf "%s" "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # Force-add host key without verification
+          ssh-keyscan -H $INSTANCE_IP > ~/.ssh/known_hosts 2>/dev/null
+          
+          # Connection test with verbose output
+          echo "🔄 Testing SSH connection..."
+          ssh -vvv -o BatchMode=yes -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP exit  # Change "ubuntu" to your AMI's default user    
+
       - name: 🚀 Deploy Drupal Container
         run: |
           ssh -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP <<EOF
