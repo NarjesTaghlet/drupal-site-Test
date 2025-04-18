@@ -81,7 +81,7 @@ jobs:
               -e DB_PORT="$DB_PORT" \
               -e DB_NAME="$DB_NAME" \
               -e DB_USER="$DB_USER" \
-              -e DB_PASSWORD="$DB_PASSWORD" \
+              -e DB_PASSWORD='$DB_PASSWORD' \
               -e AWS_REGION="$AWS_REGION" \
               $DOCKER_IMAGE || { echo "Failed to run Docker container"; exit 1; }
 
