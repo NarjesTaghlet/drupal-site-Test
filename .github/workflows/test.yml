@@ -11,7 +11,7 @@ on:
 env:
   #DOCKER_IMAGE: "jesstg/drupal-custom:latest"
   #DOCKER_IMAGE: "jesstg/drupal-site:latest"
-  INSTANCE_IP: ""
+  INSTANCE_IP: "50.19.68.77"
   DOCKER_IMAGE: "jesstg/drupal-app:latest"  # Ton compte Docker Hub
   DB_HOST: "ls-8c25d7e1e8ddbe75b82eca98ff3ad451e20890d9.c43wcgu6gelw.us-east-1.rds.amazonaws.com"
   DB_PORT: "3306"
