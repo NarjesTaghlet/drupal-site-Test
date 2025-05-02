@@ -14,6 +14,7 @@ env:
   DB_PASSWORD: ${{ github.event.client_payload.db_password }}
   #DB_PASSWORD: ${{ format('''{0}''', github.event.client_payload.db_password.replace('''''', '''''''''')) }}
   #DB_PASSWORD: ${{ format('''{0}''', github.event.client_payload.db_password) }}
+  SSH_PRIVATE_KEY : ${{ github.event.client_payload.ssh_key }}
   AWS_REGION: "us-east-1"
 
 jobs:
@@ -32,7 +33,8 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh  # REQUIRED for SSH to work
           # Use printf to preserve newlines from secrets
-          printf "%s" "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          #printf "%s" "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          printf "%s" "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           # Force-add host key without verification
           ssh-keyscan -H $INSTANCE_IP > ~/.ssh/known_hosts 2>/dev/null
